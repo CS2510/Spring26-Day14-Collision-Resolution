@@ -62,7 +62,7 @@
       constructor() {
         super("HorizontalWallGameObject")
         this.addComponent(new Polygon(), { points: [new Vector2(-100, -10), new Vector2(100, -10), new Vector2(100, 10), new Vector2(-100, 10)] })
-        this.addComponent(new Collider())
+        this.addComponent(new Collider(), {customPoints: [new Vector2(-100, 0), new Vector2(100, 0)]})
       }
     }
 
@@ -70,7 +70,7 @@
       constructor() {
         super("VerticalWallGameObject")
         this.addComponent(new Polygon(), { points: [new Vector2(-10, -100), new Vector2(10, -100), new Vector2(10, 100), new Vector2(-10, 100)] })
-        this.addComponent(new Collider())
+        this.addComponent(new Collider(), {customPoints: [new Vector2(-10, -100), new Vector2(-10, 100), new Vector2(10, -100), new Vector2(10, 100)]})
       }
     }
 
