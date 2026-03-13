@@ -54,6 +54,9 @@
     }
 
     class BlockController extends Component {
+      update() {
+
+      }
 
     }
 
@@ -88,10 +91,16 @@
       return new Vector2((pixels.x - 25 - 50) / 100, (pixels.y - 25 - 50) / 100)
     }
 
+    function lerp(f, a, b){
+      return new Vector2((1-f)*a.x+f*b.x,(1-f)*a.y+f*b.y,(1-f)*a.y+f*b.y,)
+    }
+
     /**
      * The main controller for the game
      */
     class Controller extends Component {
+      timeSinceLastMove = 1 //This lets us animate the movement of pieces
+      animating = false
       start() {
         //Create the background tiles that create the board
         for (let i = 0; i < 4; i++) {
@@ -106,6 +115,66 @@
       }
 
       update() {
+        this.timeSinceLastMove += Time.deltaTime
+
+        const blockGameObjects = Engine.currentScene.gameObjects.filter(go => go.name === "Block Game Object")
+
+        //Create a new array. This list is made of objects that have two variables.
+        //One is a reference to a block game object
+        //The second is the coordinate of that block in [0,3]x[0x3]
+        //We will "move" the blocks by changing their coordinate in this new array.
+        //Once all the blocks have been "moved", we will update their transform to reflect the new coordinate
+        let allBlocks = blockGameObjects.map(go => {
+          return { go, coordinates: pixelsToCoordinates(go.transform.position) }
+        })
+
+        //Clear data on the all the blocks
+        //Specifically, tell all blocks that they have not been merged this update
+        for (const block of allBlocks) {
+          block.go.getComponent(BlockController).mergedThisFrame = false
+        }
+
+        if (this.timeSinceLastMove < 1) {
+          //Animate the blocks
+          for(const block of blockGameObjects){
+            block.transform.position = lerp(this.timeSinceLastMove, block.transform.position, block.transform.goalPosition)
+          }
+          return
+        }
+        else {
+          if (this.animating) {
+            //End the animations
+            //Get a list of all open coordinates
+            //i.e., coordinates with blocks on them.
+            //This is the list of coordinates we will choose from
+            //when we add a new block
+            const openCoordinates = []
+            for (let x = 0; x < 4; x++) {
+              for (let y = 0; y < 4; y++) {
+                const possibleCoordinate = new Vector2(x, y)
+                if (!allBlocks.some(b => b.coordinates.x === possibleCoordinate.x && b.coordinates.y === possibleCoordinate.y)) {
+                  openCoordinates.push(possibleCoordinate)
+                }
+              }
+            }
+
+            //If there is nowhere to place another block, the game is over
+            if (openCoordinates.length === 0) {
+              console.log("Game Over")
+            } else {
+              //Pick a random coordinate from all the open coordinates
+              const r = Math.floor(Math.random() * openCoordinates.length)
+              const blockGameObject = instantiate(new BlockGameObject(), coordinatesToPixels(openCoordinates[r]))
+              if (Math.random() > .5) {
+                blockGameObject.getComponent(TextLabel).text = "4"
+              }
+            }
+            this.animating = false
+            return
+          }
+        }
+
+
         let direction = new Vector2(0, 0)
         if (Input.keysDownThisFrame.includes("ArrowLeft")) direction = new Vector2(-1, 0)
         if (Input.keysDownThisFrame.includes("ArrowRight")) direction = new Vector2(1, 0)
@@ -126,25 +195,9 @@
         //Step 1 -- Move the blocks, merging as we go
 
         //Get an array of all the block game objects in the scene
-        const blockGameObjects = Engine.currentScene.gameObjects.filter(go => go.name === "Block Game Object")
-
-        //Create a new array. This list is made of objects that have two variables.
-        //One is a reference to a block game object
-        //The second is the coordinate of that block in [0,3]x[0x3]
-        //We will "move" the blocks by changing their coordinate in this new array.
-        //Once all the blocks have been "moved", we will update their transform to reflect the new coordinate
-        let allBlocks = blockGameObjects.map(go => {
-          return { go, coordinates: pixelsToCoordinates(go.transform.position) }
-        })
-
-        //Clear data on the all the blocks
-        //Specifically, tell all blocks that they have not been merged this update
-        for (const block of allBlocks) {
-          block.go.getComponent(BlockController).mergedThisFrame = false
-        }
+        
 
         //Run code based on the direction the user pushed
-        //TODO: Change this so it is not direction-dependent
         const xAxis = direction.x !== 0
         const coord = xAxis ? "x" : "y"
         const magnitude = xAxis ? direction.x : direction.y
@@ -167,7 +220,7 @@
             //Try and move the block
             while (block.coordinates[coord] + magnitude !== 4 && block.coordinates[coord] + magnitude !== -1) {
               //Check to see if there is a block in the next position
-              const otherBlock = allBlocks.find(b => b.coordinates.x === x + direction.x && b.coordinates.y === block.coordinates.y + direction.y)
+              const otherBlock = allBlocks.find(b => b.coordinates.x === block.coordinates.x + direction.x && b.coordinates.y === block.coordinates.y + direction.y)
 
               //If there isn't another block there, then we can just move the block
               if (!otherBlock) {
@@ -211,37 +264,16 @@
 
         //Now go through and reposition the blocks based on their final coordinate
         for (const block of allBlocks) {
-          block.go.transform.position = coordinatesToPixels(block.coordinates)
+          block.go.transform.goalPosition = coordinatesToPixels(block.coordinates)
         }
+
+        this.timeSinceLastMove = 0
+        this.animating = true
 
 
         //Step 2 -- Add a new block to the game
 
-        //Get a list of all open coordinates
-        //i.e., coordinates with blocks on them.
-        //This is the list of coordinates we will choose from
-        //when we add a new block
-        const openCoordinates = []
-        for (let x = 0; x < 4; x++) {
-          for (let y = 0; y < 4; y++) {
-            const possibleCoordinate = new Vector2(x, y)
-            if (!allBlocks.some(b => b.coordinates.x === possibleCoordinate.x && b.coordinates.y === possibleCoordinate.y)) {
-              openCoordinates.push(possibleCoordinate)
-            }
-          }
-        }
 
-        //If there is nowhere to place another block, the game is over
-        if (openCoordinates.length === 0) {
-          console.log("Game Over")
-        } else {
-          //Pick a random coordinate from all the open coordinates
-          const r = Math.floor(Math.random() * openCoordinates.length)
-          const blockGameObject = instantiate(new BlockGameObject(), coordinatesToPixels(openCoordinates[r]))
-          if (Math.random() > .5) {
-            blockGameObject.getComponent(TextLabel).text = "4"
-          }
-        }
       }
     }
 
